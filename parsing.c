@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "mpc.h"
 
 #ifdef _WIN32
@@ -23,6 +24,46 @@ void add_history(char* unused) {}
 #include <editline/history.h>
 #endif
 
+/* Use operator string to see which operation to perform */
+double eval_op(double x, char* op, double y) {
+  if(strcmp(op, "+") == 0 || strcmp(op, "add")  == 0) { return x + y; }
+  if(strcmp(op, "-") == 0 || strcmp(op, "sub")  == 0) { return x - y; }
+  if(strcmp(op, "*") == 0 || strcmp(op, "mult") == 0) { return x * y; }
+  if(strcmp(op, "/") == 0 || strcmp(op, "div")  == 0) { return x / y; }
+  if(strcmp(op, "%") == 0 || strcmp(op, "mod")  == 0) { return fmod(x, y); }
+  if(strcmp(op, "^") == 0 || strcmp(op, "pow")  == 0) { return pow(x, y); }
+  if(strcmp(op, "min")  == 0) { return x < y ? x : y; }
+  if(strcmp(op, "max")  == 0) { return x > y ? x : y; }
+  
+  return 0;
+}
+
+double eval(mpc_ast_t* t) {
+
+  /* If tagged as number return it directly */
+  if (strstr(t->tag, "number")) {
+    return atof(t->contents);
+  }
+
+  /* The operator is always second child */
+  char* op = t->children[1]->contents;
+
+  /* We store the third child in 'x' */
+  double x = eval(t->children[2]);
+
+  /* Iterate the remaining children and combining */
+  int i = 3;
+  while (strstr(t->children[i]->tag, "expr")) {
+    x = eval_op(x, op, eval(t->children[i]));
+    i++;
+  }
+
+  /* Negate number if onlu one argument is passed for '-' operator */
+  if (strcmp(op, "-") == 0 && i == 3) { return -x; }
+  else
+    return x;
+}
+
 int main(int argc, char** argv){
   /*Create Some Parsers */
   mpc_parser_t* Number        = mpc_new("number");
@@ -34,26 +75,28 @@ int main(int argc, char** argv){
   mpca_lang(MPCA_LANG_DEFAULT,
       "                                                         \
       number       : /-?[0-9]+[.]*[0-9]*/ ;                     \
-      operator     : '+' | '-' | '*' | '/' | '%' |              \
-      \"add\" | \"sub\" | \"mult\" | \"div\";                   \
+      operator     : '+' | '-' | '*' | '/' | '%' | '^' |        \
+      \"add\" | \"sub\" | \"mult\" | \"div\" |                  \
+      \"mod\" | \"pow\" | \"min\" | \"max\";                    \
       expr         : <number> | '(' <operator> <expr>+ ')' ;    \
       lispy        : /^/ <operator> <expr>+ /$/ ;               \
       ",
       Number, Operator, Expr, Lispy);
 
   puts("Friendly lispy");
-  puts("Lispy version 0.0.0.0.2");
+  puts("Lispy version 0.0.0.0.3");
   puts("Press Ctrl+c to Exit\n");
 
   while(1){
     char* input = readline("lispy> ");
-    
     add_history(input);
+
     /* Attempt to Parse the user Input */
     mpc_result_t r;
     if(mpc_parse("<stdin>", input, Lispy, &r)) {
       /* On Success Print the AST */
-      mpc_ast_print(r.output);
+      double result = eval(r.output);
+      printf("%f\n", result);
       mpc_ast_delete(r.output);
     } else {
       /* Otherwise Print the Error */
