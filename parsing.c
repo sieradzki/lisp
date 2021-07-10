@@ -24,32 +24,100 @@ void add_history(char* unused) {}
 #include <editline/history.h>
 #endif
 
-/* Use operator string to see which operation to perform */
-double eval_op(double x, char* op, double y) {
-  if(strcmp(op, "+") == 0 || strcmp(op, "add")  == 0) { return x + y; }
-  if(strcmp(op, "-") == 0 || strcmp(op, "sub")  == 0) { return x - y; }
-  if(strcmp(op, "*") == 0 || strcmp(op, "mult") == 0) { return x * y; }
-  if(strcmp(op, "/") == 0 || strcmp(op, "div")  == 0) { return x / y; }
-  if(strcmp(op, "%") == 0 || strcmp(op, "mod")  == 0) { return fmod(x, y); }
-  if(strcmp(op, "^") == 0 || strcmp(op, "pow")  == 0) { return pow(x, y); }
-  if(strcmp(op, "min")  == 0) { return x < y ? x : y; }
-  if(strcmp(op, "max")  == 0) { return x > y ? x : y; }
-  
-  return 0;
+/* Create Enumeration of Possible lbal Types */
+enum { LVAL_NUM, LVAL_ERR };
+
+/* Create Enumeration of Possible Error Types */
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+
+/* Declare New lval Struct */
+typedef struct{
+  int type;
+  double num;
+  int err;
+} lval;
+
+/* Create a new number type lval */
+lval lval_num(double x) {
+  lval v;
+  v.type = LVAL_NUM;
+  v.num = x;
+  return v;
 }
 
-double eval(mpc_ast_t* t) {
+/* Create a new error type lval */
+lval lval_err(int x) {
+  lval v;
+  v.type = LVAL_ERR;
+  v.err = x;
+  return v;
+}
+
+/* Print an "lval" */
+void lval_print(lval v) {
+  switch(v.type) {
+    case LVAL_NUM: printf("%f", v.num); break;
+    case LVAL_ERR:
+                   if (v.err == LERR_DIV_ZERO) {
+                     printf("Error: Division By Zero!");
+                   }
+                   if (v.err == LERR_BAD_OP) {
+                     printf("Error: Invalid Operator!");
+                   }
+                   if (v.err == LERR_BAD_NUM) {
+                     printf("Error: Invalid Number!");
+                   }
+                   break;
+  }
+}
+
+/* Print an "lval" followed by a newline */
+void lval_println(lval v) {
+  lval_print(v);
+  putchar('\n');
+}
+
+/* Use operator string to see which operation to perform */
+lval eval_op(lval x, char* op, lval y) {
+
+  /* If either value is an error return it */
+  if (x.type == LVAL_ERR) { return x; }
+  if (y.type == LVAL_ERR) { return y; }
+
+  /* Otherwise do maths on the number values */
+  if(strcmp(op, "+") == 0 || strcmp(op, "add")  == 0) {return lval_num(x.num + y.num);}
+  if(strcmp(op, "-") == 0 || strcmp(op, "sub")  == 0) {return lval_num(x.num - y.num);}
+  if(strcmp(op, "*") == 0 || strcmp(op, "mult") == 0) {return lval_num(x.num * y.num);}
+  if(strcmp(op, "/") == 0 || strcmp(op, "div")  == 0) {
+    /* If second operand is zero return error */
+    return y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num);
+  }
+  if(strcmp(op, "%") == 0 || strcmp(op, "mod")  == 0) {
+    return lval_num(fmod(x.num, y.num)); 
+  }
+  if(strcmp(op, "^") == 0 || strcmp(op, "pow")  == 0) {
+    return lval_num(pow(x.num, y.num)); 
+  }
+  if(strcmp(op, "min")  == 0) { return lval_num(x.num < y.num  ? x.num  : y.num ); }
+  if(strcmp(op, "max")  == 0) { return lval_num(x.num  > y.num  ? x.num  : y.num ); }
+  
+  return lval_err(LERR_BAD_OP);
+}
+
+lval eval(mpc_ast_t* t) {
 
   /* If tagged as number return it directly */
   if (strstr(t->tag, "number")) {
-    return atof(t->contents);
+    errno = 0;
+    double x = strtod(t->contents, NULL);
+    return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
   }
 
   /* The operator is always second child */
   char* op = t->children[1]->contents;
 
   /* We store the third child in 'x' */
-  double x = eval(t->children[2]);
+  lval x = eval(t->children[2]);
 
   /* Iterate the remaining children and combining */
   int i = 3;
@@ -58,9 +126,11 @@ double eval(mpc_ast_t* t) {
     i++;
   }
 
-  /* Negate number if onlu one argument is passed for '-' operator */
-  if (strcmp(op, "-") == 0 && i == 3) { return -x; }
-  else
+  /* Negate number if only one argument is passed for '-' operator */
+  if (strcmp(op, "-") == 0 && i == 3) {
+    x.num = -x.num;
+    return x;
+  } else
     return x;
 }
 
@@ -83,8 +153,8 @@ int main(int argc, char** argv){
       ",
       Number, Operator, Expr, Lispy);
 
-  puts("Friendly lispy");
-  puts("Lispy version 0.0.0.0.3");
+  puts("Polish lispy");
+  puts("Lispy version 0.0.0.0.4");
   puts("Press Ctrl+c to Exit\n");
 
   while(1){
@@ -95,8 +165,8 @@ int main(int argc, char** argv){
     mpc_result_t r;
     if(mpc_parse("<stdin>", input, Lispy, &r)) {
       /* On Success Print the AST */
-      double result = eval(r.output);
-      printf("%f\n", result);
+      lval result = eval(r.output);
+      lval_println(result);
       mpc_ast_delete(r.output);
     } else {
       /* Otherwise Print the Error */
