@@ -215,6 +215,10 @@ lval* builtin_op(lval* a, char* op) {
       }
       x->num /= y->num;
     }
+    if(strcmp(op, "%") == 0) { x->num = fmod(x->num, y->num); }
+    if(strcmp(op, "max") == 0) { x->num = x->num > y->num ? x->num : y->num; }
+    if(strcmp(op, "min") == 0) { x->num = x->num < y->num ? x->num : y->num; }
+    if(strcmp(op, "pow") == 0) { x->num = pow(x->num, y->num); }
     lval_del(y);
   }
   
@@ -266,7 +270,7 @@ lval* lval_eval(lval* v) {
 int main(int argc, char** argv){
   /*Create Some Parsers */
   mpc_parser_t* Number = mpc_new("number");
-  mpc_parser_t* Symbol = mpc_new("operator");
+  mpc_parser_t* Symbol = mpc_new("symbol");
   mpc_parser_t* Sexpr  = mpc_new("sexpr");
   mpc_parser_t* Expr   = mpc_new("expr");
   mpc_parser_t* Lispy  = mpc_new("lispy");
