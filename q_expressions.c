@@ -300,6 +300,42 @@ lval *builtin_head(lval *a)
   return v;
 }
 
+/* Takes a value and a Q-Expression and appends it to the front */
+lval* builtin_cons(double x, lval* v)
+{
+  /* Check Error Conditions */
+  LASSERT(v, v->cell[0]->type == LVAL_QEXPR, "Function 'cons' passed incorrect types!");
+
+  v->count++;
+  v->cell = realloc(v->cell, sizeof(lval *) * v->count);
+  v->cell[v->count - 1]->num = x;
+  return v;
+}
+
+/* Return number of elements in a Q-Expression */
+int builtin_len(lval* v)
+{
+  /* Check Error Conditions */
+  return v->count - 1;
+}
+
+/* Return all of a Q-Expression except the final element */
+lval* builtin_init(lval* v)
+{
+  /* Check Error Conditions */
+  LASSERT(v, v->cell[0]->type == LVAL_QEXPR, "Function 'cons' passed incorrect types!");
+  LASSERT(v, v->cell[0]->count > 1, "Function 'init' passed {}!");
+
+  lval* x = lval_pop(v, v->count - 1);
+
+  for ( int i = v->count-2; i >= 0; i++ )
+  {
+    x = lval_pop(v, i);
+  }
+  return x;
+}
+
+
 /* Forward declaration of lval_eval */
 lval *lval_eval(lval *v);
 
