@@ -21,8 +21,7 @@ char *readline(char *prompt)
 void add_history(char *unused) {}
 
 #else
-#include <editline/readline.h>
-#include <editline/history.h>
+#include <editline.h>
 #endif
 
 #define LASSERT(args, cond, err) \
@@ -299,6 +298,36 @@ lval *builtin_head(lval *a)
   }
   return v;
 }
+
+/* Takes a value and a Q-Expression and appends it to the front */
+lval* builtin_cons(double x, lval* v)
+{
+  /* Check Error Conditions */
+  LASSERT(v, v->cell[0]->type == LVAL_QEXPR, "Function 'cons' passed incorrect types!");
+
+  /* I am not sure if it is exactly what the author meant but maybe? */
+  v = lval_add(v, lval_num(x));
+  return v;
+}
+
+/* Return number of elements in a Q-Expression */
+int builtin_len(lval* v)
+{
+  return v->count;
+}
+
+/* Return all of a Q-Expression except the final element */
+lval* builtin_init(lval* v)
+{
+  /* Check Error Conditions */
+  LASSERT(v, v->type == LVAL_QEXPR, "Function 'init' passed incorrect types!");
+  LASSERT(v, v->count > 0, "Function 'init' passed {}!");
+
+  lval_pop(v, v->count - 1);
+
+  return v;
+}
+
 
 /* Forward declaration of lval_eval */
 lval *lval_eval(lval *v);
@@ -621,6 +650,7 @@ int main(int argc, char **argv)
     {
       /* On Success Print the AST */
       lval *x = lval_eval(lval_read(r.output));
+
       lval_println(x);
       lval_del(x);
       mpc_ast_delete(r.output);
